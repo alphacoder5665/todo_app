@@ -1,7 +1,7 @@
 {
-      "name": "kanban-backend",
+      "name": "todo-backend",
       "version": "1.0.0",
-      "description": "Backend for Kanban app",
+      "description": "Backend for todo app",
       "main": "server.js",
       "scripts": {
         "start": "node server.js"

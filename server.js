@@ -195,7 +195,7 @@ app.delete("/api/tasks/:id", async (req, res) => {
 
 // --- Start the Server ---
 app.listen(PORT, () => {
-  console.log(`Kanban API server listening on http://localhost:${PORT}`);
+  console.log(`Todo task API server listening on http://localhost:${PORT}`);
   // Ensure tasks.json exists on startup
   if (!fs.existsSync(TASKS_FILE_PATH)) {
     writeTasksToFile([])
@@ -214,9 +214,9 @@ To use this backend:
 2.  Create a `package.json` file in the same directory:
     ```json
     {
-      "name": "kanban-backend",
+      "name": "todo-backend",
       "version": "1.0.0",
-      "description": "Backend for Kanban app",
+      "description": "Backend for Todo app",
       "main": "server.js",
       "scripts": {
         "start": "node server.js"
