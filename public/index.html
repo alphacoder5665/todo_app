@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kanban Board</title>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script> -->
+    <link rel="stylesheet" href="style.css">
+
+
+</head>
+
+<body>
+    <h1>Kanban Task Tracker</h1>
+    <p class="subtitle">Organize your work, one task at a time.</p>
+
+    <div class="task-form-wrapper">
+        <h2>Add New Task</h2>
+        <div style="margin-bottom: 15px;">
+            <label>
+                <input type="checkbox" id="theme-toggle">
+                Toggle Dark Theme
+            </label>
+        </div>
+
+        <form id="task-form">
+            <input type="text" id="task-text" placeholder="Enter task description..." required />
+            <input type="text" id="task-details" placeholder="Enter task details (optional)..." />
+            <button type="submit">Add Task</button>
+        </form>
+    </div>
+
+    <div class="board">
+        <div class="column" data-status="todo">
+            <h2>To Do</h2>
+            <div class="task-list" id="todo"></div>
+        </div>
+        <div class="column" data-status="in-progress">
+            <h2>In Progress</h2>
+            <div class="task-list" id="in-progress"></div>
+        </div>
+        <div class="column" data-status="done">
+            <h2>Done</h2>
+            <div class="task-list" id="done"></div>
+        </div>
+    </div>
+
+
+    <!-- Task Detail Modal -->
+    <div id="task-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h3 id="modal-title"></h3>
+            <p id="modal-details"></p>
+        </div>
+    </div>
+
+
+
+    <script>
+        const taskForm = document.getElementById("task-form");
+        const taskText = document.getElementById("task-text");
+        const taskDetails = document.getElementById("task-details");
+        const columns = document.querySelectorAll(".task-list");
+
+        // Create modal container dynamically
+        const modal = document.createElement("div");
+        modal.classList.add("modal");
+        modal.innerHTML = `
+            <div class="modal-content">
+                <span class="close-btn">&times;</span>
+                <h3 id="modal-task-title"></h3>
+                <p id="modal-task-details"></p>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const modalTitle = document.getElementById("modal-task-title");
+        const modalDetails = document.getElementById("modal-task-details");
+        const closeBtn = modal.querySelector(".close-btn");
+
+        // Close modal logic
+        closeBtn.onclick = () => modal.style.display = "none";
+        window.onclick = (e) => {
+            if (e.target === modal) modal.style.display = "none";
+        };
+
+        // Load tasks on page load
+        window.addEventListener("DOMContentLoaded", async () => {
+            const res = await fetch("/api/tasks");
+            const tasks = await res.json();
+            tasks.forEach(renderTask);
+        });
+
+        // Render task element
+
+        // function renderTask(task) {
+        //     const taskDiv = document.createElement("div");
+        //     taskDiv.className = "task";
+        //     taskDiv.draggable = true;
+        //     taskDiv.dataset.id = task.id;
+
+        //     taskDiv.innerHTML = `
+        //              <div class="task-content">
+        //                      <strong class="task-text">${task.text}</strong><br>
+        //                      <small class="task-details">${task.details}</small>
+        //              </div>
+        //              <button class="edit-btn">Edit</button>
+        //              <button onclick="deleteTask('${task.id}')">Delete</button>
+        //      `;
+
+        //     addDragHandlers(taskDiv);
+        //     document.getElementById(task.status).appendChild(taskDiv);
+
+        //     const editBtn = taskDiv.querySelector(".edit-btn");
+        //     editBtn.addEventListener("click", () => enableEdit(taskDiv, task));
+        //     };
+
+
+
+        function renderTask(task) {
+            const taskDiv = document.createElement("div");
+            taskDiv.className = "task";
+            taskDiv.draggable = true;
+            taskDiv.dataset.id = task.id;
+            taskDiv.dataset.text = task.text;
+            taskDiv.dataset.details = task.details;
+
+            taskDiv.innerHTML = `
+                    <div class="task-title">${task.text}</div>
+                    <button class="delete-btn" title="Delete Task">&times;</button>
+                `;
+
+            // Click on task to open modal
+            taskDiv.addEventListener("click", (e) => {
+                if (e.target.classList.contains("delete-btn")) return; // skip if clicking delete
+                modalTitle.textContent = task.text;
+                modalDetails.textContent = task.details || "No details provided.";
+                modal.style.display = "block";
+            });
+
+            // Delete logic
+            taskDiv.querySelector(".delete-btn").addEventListener("click", async (e) => {
+                e.stopPropagation(); // prevent modal popup
+                await deleteTask(task.id);
+            });
+
+            addDragHandlers(taskDiv);
+            document.getElementById(task.status).appendChild(taskDiv);
+        }
+
+        // Submit task form
+        taskForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const text = taskText.value.trim();
+            const details = taskDetails.value.trim();
+
+            if (!text) return;
+
+            const res = await fetch("/api/tasks", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text, details })
+            });
+
+            const newTask = await res.json();
+            renderTask(newTask);
+            taskForm.reset();
+        });
+
+        // Delete task from backend and UI
+        async function deleteTask(id) {
+            await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+            document.querySelector(`[data-id="${id}"]`)?.remove();
+        }
+
+        // Drag-and-drop support
+        function addDragHandlers(taskEl) {
+            taskEl.addEventListener("dragstart", (e) => {
+                e.dataTransfer.setData("text/plain", taskEl.dataset.id);
+            });
+        }
+
+        columns.forEach(column => {
+            column.parentElement.addEventListener("dragover", (e) => {
+                e.preventDefault();
+            });
+
+            column.parentElement.addEventListener("drop", async (e) => {
+                e.preventDefault();
+                const taskId = e.dataTransfer.getData("text/plain");
+                const newStatus = column.id;
+                const taskEl = document.querySelector(`[data-id="${taskId}"]`);
+
+                if (taskEl && taskEl.parentElement.id !== newStatus) {
+                    await fetch(`/api/tasks/${taskId}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ status: newStatus })
+                    });
+                    column.appendChild(taskEl);
+                }
+            });
+        });
+
+
+        const themeToggle = document.getElementById('theme-toggle');
+
+        themeToggle.addEventListener('change', () => {
+            document.body.classList.toggle('dark');
+            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        });
+
+        // Load saved theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark');
+            themeToggle.checked = true;
+        };
+
+        function enableEdit(taskEl, task) {
+            const originalHTML = taskEl.innerHTML;
+
+            taskEl.innerHTML = `
+        <input type="text" class="edit-text" value="${task.text}">
+        <input type="text" class="edit-details" value="${task.details}">
+        <div class="task-actions">
+            <button class="save-btn">Save</button>
+            <button class="cancel-btn">Cancel</button>
+        </div>
+    `;
+
+            taskEl.querySelector(".save-btn").addEventListener("click", async () => {
+                const newText = taskEl.querySelector(".edit-text").value.trim();
+                const newDetails = taskEl.querySelector(".edit-details").value.trim();
+
+                if (!newText) return alert("Task must have text.");
+
+                const res = await fetch(`/api/tasks/${task.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        text: newText,
+                        details: newDetails,
+                        status: task.status
+                    })
+                });
+
+                const updatedTask = await res.json();
+
+                // Remove old and render updated
+                taskEl.remove();
+                renderTask(updatedTask);
+            });
+
+            taskEl.querySelector(".cancel-btn").addEventListener("click", () => {
+                taskEl.innerHTML = originalHTML;
+                renderTask(task); // Restore original
+                taskEl.remove();  // Remove duplicate
+            });
+        }
+
+
+        // function enableEdit(taskEl, task) {
+        //     const contentDiv = taskEl.querySelector(".task-content");
+        //     const oldText = task.text;
+        //     const oldDetails = task.details;
+
+        //     contentDiv.innerHTML = `
+        //              <input type="text" class="edit-text" value="${oldText}">
+        //              <br>
+        //              <input type="text" class="edit-details" value="${oldDetails}">
+        //              <br>
+        //              <button class="save-btn">Save</button>
+        //              <button class="cancel-btn">Cancel</button>
+        //      `;
+
+        //     taskEl.querySelector(".save-btn").addEventListener("click", async () => {
+        //         const newText = taskEl.querySelector(".edit-text").value.trim();
+        //         const newDetails = taskEl.querySelector(".edit-details").value.trim();
+
+        //         if (!newText) return;
+
+        //         const res = await fetch(`/api/tasks/${task.id}`, {
+        //             method: "PUT",
+        //             headers: { "Content-Type": "application/json" },
+        //             body: JSON.stringify({ text: newText, details: newDetails, status: task.status })
+        //         });
+
+        //         const updatedTask = await res.json();
+        //         taskEl.innerHTML = ''; // Clear old content
+        //         renderTask(updatedTask); // Re-render updated task
+        //         taskEl.remove(); // Remove duplicate
+        //     });
+
+        //     taskEl.querySelector(".cancel-btn").addEventListener("click", () => {
+        //         taskEl.innerHTML = ''; // Remove edit form
+        //         renderTask(task);      // Re-render original task
+        //         taskEl.remove();       // Remove duplicate
+        //     });
+        // };
+
+
+    </script>
+
+</body>
+
+</html>
